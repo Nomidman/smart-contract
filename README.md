@@ -1,1 +1,1 @@
-# Puclic-smart-contract
+# Nomidman Escrow Contract
