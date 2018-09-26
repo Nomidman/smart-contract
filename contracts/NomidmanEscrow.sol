@@ -1,4 +1,4 @@
-pragma solidity v0.4.25;
+pragma solidity ^0.4.25;
 
 contract NomidmanEscrow {
 
@@ -13,10 +13,9 @@ contract NomidmanEscrow {
     }
 
     constructor () public {
-        owner = msg.sender;
-        arbitrator = msg.sender;
-        relayer = msg.sender;
         manager = msg.sender;
+        mediator = msg.sender;
+        relayer = msg.sender;
     }
 
     mapping (bytes32 => Escrow) public escrows;
@@ -33,14 +32,14 @@ contract NomidmanEscrow {
 
     // Calculate unique hash for trade
     function getTradeHash(
-        byte16 _tradeId,
-        address seller,
-        address buyer,
-        uint256 value,
+        bytes16 _tradeId,
+        address _seller,
+        address _buyer,
+        uint256 _value,
         uint16 _fee
-    ) view internal returns (byte32)
+    ) pure internal returns (bytes32)
     {
-        bytes32 tradeHash = keccak256(_tradeID, _seller, _buyer, _value, _fee);
+        bytes32 tradeHash = keccak256(abi.encodePacked(_tradeId, _seller, _buyer, _value, _fee));
         return (tradeHash);
     }
 }
