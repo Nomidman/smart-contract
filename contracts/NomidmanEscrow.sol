@@ -42,4 +42,11 @@ contract NomidmanEscrow {
         bytes32 tradeHash = keccak256(abi.encodePacked(_tradeId, _seller, _buyer, _value, _fee));
         return (tradeHash);
     }
+
+    function createEscrow(bytes16 _tradeID, address _seller, address _buyer, uint256 _value,
+        uint16 _fee, uint32 _paymentWindowInSeconds, uint8 _v, bytes32 _r, bytes32 _s) payable external {
+        bytes32 _tradeHash = keccak256(abi.encodePacked(_tradeID, _seller, _buyer, _value, _fee));
+        require(!escrows[_tradeHash].exists);
+        require(ecrecover(keccak256(abi.encodePacked(_tradeHash, _paymentWindowInSeconds)), _v, _r, _s) == relayer);
+    }
 }
