@@ -1,10 +1,15 @@
 pragma solidity ^0.4.25;
 
+import './SafeMath.sol';
+
 contract NomidmanEscrow {
+
+    using SafeMath for uint256;
 
     address public mediator;
     address public relayer;
     address public manager;
+    uint256 public nomidFees;
 
     uint8 constant DISPUTE_CODE = 0x01;
 
@@ -48,5 +53,11 @@ contract NomidmanEscrow {
         bytes32 _tradeHash = keccak256(abi.encodePacked(_tradeID, _seller, _buyer, _value, _fee));
         require(!escrows[_tradeHash].exists);
         require(ecrecover(keccak256(abi.encodePacked(_tradeHash, _paymentWindowInSeconds)), _v, _r, _s) == relayer);
+    }
+
+    function withdrawFees(uint256 _amount, address _receiver) public onlyManager {
+        require(_amount <= nomidFees);
+        nomidFees = nomidFees.sub(_amount);
+        _receiver.transfer(_amount);
     }
 }
