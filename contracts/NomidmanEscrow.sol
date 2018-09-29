@@ -12,6 +12,7 @@ contract NomidmanEscrow {
     uint256 public nomidFees;
 
     uint8 constant DISPUTE_CODE = 0x01;
+    uint8 constant RELEASE_CODE = 0x02;
 
     struct Escrow {
         bool exists;
@@ -60,4 +61,14 @@ contract NomidmanEscrow {
         nomidFees = nomidFees.sub(_amount);
         _receiver.transfer(_amount);
     }
+
+    function doRelease(bytes16 _tradeID, address _seller, address _buyer, uint256 _value, uint16 _fee) private returns (bool) {
+        bytes32 _tradeHash = getTradeHash(_tradeID, _seller, _buyer, _value, _fee);
+        Escrow memory _escrow = escrows[_tradeHash];
+        if (!_escrow.exists) return false;
+        delete escrows[_tradeHash];
+        //Transfer Funds to buyer
+        return true;
+    }
+
 }
