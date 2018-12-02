@@ -211,8 +211,6 @@ contract NomidmanEscrow {
         require(_value - _totalFees <= _value);
         // Prevent underflow
         nomidFees += _totalFees;
-        // Add the the pot for localethereum to withdraw
-
         delete escrows[_tradeHash];
         emit DisputeResolved(_tradeHash);
         _buyer.transfer((_value - _totalFees) * _buyerPercent / 100);
