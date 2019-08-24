@@ -88,11 +88,15 @@ contract NomidmanEscrow {
     event CancelledByBuyer(bytes32 _tradeHash);
     event Released(bytes32 _tradeHash);
     event DisputeResolved(bytes32 _tradeHash);
-    
+
     event AmountCheck(uint256 sent, uint256 value);
 
     event EscrowCheck(string _tradeID, address _seller, address _buyer, uint256 _value,
         uint256 _fee, uint32 paymentWindow, bytes32 tradeHash,bytes32 combinedhash, bytes32 moreHash, address relayer);
+
+    event Test1(uint256 _gasFees);
+    event Test2(uint256 _totalFeesl);
+
     struct Escrow {
         bool exists;
         uint32 canBeCancelledBySellerWithin;
@@ -119,6 +123,7 @@ contract NomidmanEscrow {
     }
 
     mapping(bytes32 => Escrow) public escrows;
+    bytes32[] public escrowLUTTemp;
 
     modifier onlyManager() {
         require(msg.sender == manager);
@@ -136,16 +141,16 @@ contract NomidmanEscrow {
         address _seller,
         address _buyer,
         uint256 _value,
-        uint16 _fee
-    ) pure internal returns (bytes32)
+        uint256 _fee
+    ) pure public returns (bytes32)
     {
         bytes32 tradeHash = keccak256(abi.encodePacked(_tradeId, _seller, _buyer, _value, _fee));
         return (tradeHash);
     }
 
-    function createEscrow(string calldata _tradeID, address _seller, address _buyer, uint256 _value,
+    function createEscrow(bytes16 _tradeID, address _seller, address _buyer, uint256 _value,
         uint256 _fee, uint32 _paymentWindowInSeconds, uint256 _expiry, uint8 _v, bytes32 _r, bytes32 _s)
-        payable external{
+    payable external{
         // string memory tradeId = _tradeID;
         // address seller = _seller;
         // address buyer = _buyer;
@@ -161,16 +166,17 @@ contract NomidmanEscrow {
         bytes32 combinedhash = keccak256(abi.encodePacked(_tradeHash, _paymentWindowInSeconds));
         bytes memory prefix = "\x19Ethereum Signed Message:\n32";
         bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, combinedhash));
-       
+
         require(!escrows[_tradeHash].exists);
         require(ecrecover(prefixedHash, _v, _r, _s) == relayer);
         //require(block.timestamp < _expiry);
         require(msg.value > 0 && msg.value == _value);
         uint32 canBeCancelledBySellerWithin = _paymentWindowInSeconds == 0 ? 1 : uint32(block.timestamp) + _paymentWindowInSeconds;
         escrows[_tradeHash] = Escrow(true, canBeCancelledBySellerWithin, 0);
+        escrowLUTTemp.push(_tradeHash);
         emit Created(_tradeHash);
         //address relayerAddr = ecrecover(prefixedHash, v, r, s);
-       //emit EscrowCheck(tradeId, seller, buyer, value, fee, paymentWindow, _tradeHash, combinedhash, prefixedHash, relayerAddr);
+        //emit EscrowCheck(tradeId, seller, buyer, value, fee, paymentWindow, _tradeHash, combinedhash, prefixedHash, relayerAddr);
     }
 
     function withdrawFees(uint256 _amount, address payable _receiver) public onlyManager {
@@ -179,8 +185,9 @@ contract NomidmanEscrow {
         _receiver.transfer(_amount);
     }
 
-    function doRelease(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint128 _additionalGas) private returns (bool) {
+    function doRelease(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint256 _fee, uint128 _additionalGas) private returns (bool) {
         bytes32 _tradeHash = getTradeHash(_tradeID, _seller, _buyer, _value, _fee);
+        emit Released(_tradeHash);
         Escrow storage _escrow = escrows[_tradeHash];
         if (!_escrow.exists) return false;
 
@@ -190,7 +197,7 @@ contract NomidmanEscrow {
 
         delete escrows[_tradeHash];
 
-        emit Released(_tradeHash);
+        //emit Released(_tradeHash);
         transferMinusFees(_buyer, _value, _gasFees, _fee);
 
         return true;
@@ -301,7 +308,7 @@ contract NomidmanEscrow {
         _seller.transfer((_value - _totalFees) * (100 - _buyerPercent) / 100);
     }
 
-    function release(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee) external returns (bool){
+    function release(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint256 _fee) external returns (bool){
         require(msg.sender == _seller);
         return doRelease(_tradeID, _seller, _buyer, _value, _fee, 0);
     }
@@ -385,11 +392,13 @@ contract NomidmanEscrow {
         return ecrecover(_hash, _v, _r, _s);
     }
 
-    function transferMinusFees(address payable _to, uint256 _value, uint128 _totalGasFeesSpentByRelayer, uint16 _fee) private {
-        uint256 _totalFees = (_value * _fee / 10000) + _totalGasFeesSpentByRelayer;
-        if (_value - _totalFees > _value) return;
-        nomidFees += _totalFees;
-        _to.transfer(_value - _totalFees);
+    function transferMinusFees(address payable _to, uint256 _value, uint128 _totalGasFeesSpentByRelayer, uint256 _fee) private {
+        uint256 _totalFees = _fee.add(_totalGasFeesSpentByRelayer);
+        emit Test1(_totalFees);
+        if (_value.sub(_totalFees) > _value) return;
+        nomidFees = nomidFees.add(_totalFees);
+        emit Test2(_value.sub(_totalFees));
+        _to.transfer(_value.sub(_totalFees));
     }
 
     function increaseGasSpent(bytes32 _tradeHash, uint128 _gas) private {
