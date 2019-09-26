@@ -91,11 +91,13 @@ contract NomidmanEscrow {
 
     event AmountCheck(uint256 sent, uint256 value);
 
-    event EscrowCheck(string _tradeID, address _seller, address _buyer, uint256 _value,
-        uint256 _fee, uint32 paymentWindow, bytes32 tradeHash,bytes32 combinedhash, bytes32 moreHash, address relayer);
+    event EscrowCheck(bytes16 _tradeID, address _seller, address _buyer, uint256 _value,
+        uint256 _fee);
 
     event Test1(uint256 _gasFees);
     event Test2(uint256 _totalFeesl);
+    event TestRelease(uint8);
+    event TestRelease2(address);
 
     struct Escrow {
         bool exists;
@@ -151,18 +153,8 @@ contract NomidmanEscrow {
     function createEscrow(bytes16 _tradeID, address _seller, address _buyer, uint256 _value,
         uint256 _fee, uint32 _paymentWindowInSeconds, uint256 _expiry, uint8 _v, bytes32 _r, bytes32 _s)
     payable external{
-        // string memory tradeId = _tradeID;
-        // address seller = _seller;
-        // address buyer = _buyer;
-        // uint256 value = _value;
-        // uint256 fee = _fee;
-        // uint8 v = _v;
-        // bytes32 r = _r;
-        // bytes32 s = _s;
         uint256 amount = msg.value;
-        emit AmountCheck(amount, _value);
         bytes32 _tradeHash = keccak256(abi.encodePacked(_tradeID, _seller, _buyer, _value, _fee));
-        // uint32 paymentWindow = _paymentWindowInSeconds;
         bytes32 combinedhash = keccak256(abi.encodePacked(_tradeHash, _paymentWindowInSeconds));
         bytes memory prefix = "\x19Ethereum Signed Message:\n32";
         bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, combinedhash));
@@ -175,8 +167,6 @@ contract NomidmanEscrow {
         escrows[_tradeHash] = Escrow(true, canBeCancelledBySellerWithin, 0);
         escrowLUTTemp.push(_tradeHash);
         emit Created(_tradeHash);
-        //address relayerAddr = ecrecover(prefixedHash, v, r, s);
-        //emit EscrowCheck(tradeId, seller, buyer, value, fee, paymentWindow, _tradeHash, combinedhash, prefixedHash, relayerAddr);
     }
 
     function withdrawFees(uint256 _amount, address payable _receiver) public onlyManager {
@@ -187,7 +177,6 @@ contract NomidmanEscrow {
 
     function doRelease(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint256 _fee, uint128 _additionalGas) private returns (bool) {
         bytes32 _tradeHash = getTradeHash(_tradeID, _seller, _buyer, _value, _fee);
-        emit Released(_tradeHash);
         Escrow storage _escrow = escrows[_tradeHash];
         if (!_escrow.exists) return false;
 
@@ -197,13 +186,13 @@ contract NomidmanEscrow {
 
         delete escrows[_tradeHash];
 
-        //emit Released(_tradeHash);
+        emit Released(_tradeHash);
         transferMinusFees(_buyer, _value, _gasFees, _fee);
 
         return true;
     }
 
-    function doDisableSellerCancel(bytes16 _tradeID, address _seller, address _buyer, uint256 _value, uint16 _fee, uint128 _additionalGas)
+    function doDisableSellerCancel(bytes16 _tradeID, address _seller, address _buyer, uint256 _value, uint256 _fee, uint128 _additionalGas)
     private returns (bool) {
         bytes32 _tradeHash = getTradeHash(_tradeID, _seller, _buyer, _value, _fee);
         Escrow memory _escrow = escrows[_tradeHash];
@@ -218,10 +207,9 @@ contract NomidmanEscrow {
         return true;
     }
 
-    function doBuyerCancel(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint128 _additionalGas)
+    function doBuyerCancel(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint256 _fee, uint128 _additionalGas)
     private returns (bool) {
         bytes32 _tradeHash = getTradeHash(_tradeID, _seller, _buyer, _value, _fee);
-
         Escrow storage _escrow = escrows[_tradeHash];
 
         if (!_escrow.exists) return false;
@@ -236,7 +224,7 @@ contract NomidmanEscrow {
         return true;
     }
 
-    function doSellerCancel(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint128 _additionalGas)
+    function doSellerCancel(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint256 _fee, uint128 _additionalGas)
     private returns (bool) {
         bytes32 _tradeHash = getTradeHash(_tradeID, _seller, _buyer, _value, _fee);
 
@@ -262,7 +250,7 @@ contract NomidmanEscrow {
         return true;
     }
 
-    function doSellerRequestCancel(bytes16 _tradeID, address _seller, address _buyer, uint256 _value, uint16 _fee, uint128 _additionalGas)
+    function doSellerRequestCancel(bytes16 _tradeID, address _seller, address _buyer, uint256 _value, uint256 _fee, uint128 _additionalGas)
     private returns (bool) {
         bytes32 _tradeHash = getTradeHash(_tradeID, _seller, _buyer, _value, _fee);
 
@@ -333,29 +321,29 @@ contract NomidmanEscrow {
         return doSellerRequestCancel(_tradeID, _seller, _buyer, _value, _fee, 0);
     }
 
-    function relaySellerCannotCancel(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint128 _maximumGasPrice, uint8 _v, bytes32 _r, bytes32 _s) external returns (bool) {
-        return relay(_tradeID, _seller, _buyer, _value, _fee, _maximumGasPrice, _v, _r, _s, SELLER_CANCEL_PROHIBITED_CODE, 0);
+    function relaySellerCannotCancel(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint8 _v, bytes32 _r, bytes32 _s) external returns (bool) {
+        return relay(_tradeID, _seller, _buyer, _value, _fee, _v, _r, _s, SELLER_CANCEL_PROHIBITED_CODE, 0);
     }
 
-    function relayBuyerCancel(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint128 _maximumGasPrice, uint8 _v, bytes32 _r, bytes32 _s) external returns (bool) {
-        return relay(_tradeID, _seller, _buyer, _value, _fee, _maximumGasPrice, _v, _r, _s, CANCELLED_BY_BUYER_CODE, 0);
+    function relayBuyerCancel(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint8 _v, bytes32 _r, bytes32 _s) external returns (bool) {
+        return relay(_tradeID, _seller, _buyer, _value, _fee, _v, _r, _s, CANCELLED_BY_BUYER_CODE, 0);
     }
 
-    function relayRelease(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint128 _maximumGasPrice, uint8 _v, bytes32 _r, bytes32 _s) external returns (bool) {
-        return relay(_tradeID, _seller, _buyer, _value, _fee, _maximumGasPrice, _v, _r, _s, RELEASE_CODE, 0);
+    function relayRelease(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint256 _fee, uint8 _v, bytes32 _r, bytes32 _s) external returns (bool) {
+        return relay(_tradeID, _seller, _buyer, _value, _fee, _v, _r, _s, RELEASE_CODE, 0);
     }
 
-    function relaySellerCancel(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint128 _maximumGasPrice, uint8 _v, bytes32 _r, bytes32 _s) external returns (bool) {
-        return relay(_tradeID, _seller, _buyer, _value, _fee, _maximumGasPrice, _v, _r, _s, CANCELLED_BY_SELLER_CODE, 0);
+    function relaySellerCancel(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint8 _v, bytes32 _r, bytes32 _s) external returns (bool) {
+        return relay(_tradeID, _seller, _buyer, _value, _fee, _v, _r, _s, CANCELLED_BY_SELLER_CODE, 0);
     }
 
-    function relaySellerRequestCancel(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint128 _maximumGasPrice, uint8 _v, bytes32 _r, bytes32 _s) external returns (bool) {
-        return relay(_tradeID, _seller, _buyer, _value, _fee, _maximumGasPrice, _v, _r, _s, CANCEL_REQUEST_BY_SELLER_CODE, 0);
+    function relaySellerRequestCancel(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint8 _v, bytes32 _r, bytes32 _s) external returns (bool) {
+        return relay(_tradeID, _seller, _buyer, _value, _fee, _v, _r, _s, CANCEL_REQUEST_BY_SELLER_CODE, 0);
     }
 
-    function relay(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint16 _fee, uint128 _maximumGasPrice, uint8 _v, bytes32 _r, bytes32 _s, uint8 _actionByte, uint128 _additionalGas)
+    function relay(bytes16 _tradeID, address payable _seller, address payable _buyer, uint256 _value, uint256 _fee, uint8 _v, bytes32 _r, bytes32 _s, uint8 _actionByte, uint128 _additionalGas)
     private returns (bool) {
-        address _relayedSender = getRelayedSender(_tradeID, _actionByte, _maximumGasPrice, _v, _r, _s);
+        address _relayedSender = getRelayedSender(_tradeID, _actionByte, _v, _r, _s);
         if (_relayedSender == _buyer) {
             if (_actionByte == SELLER_CANCEL_PROHIBITED_CODE) {
                 return doDisableSellerCancel(_tradeID, _seller, _buyer, _value, _fee, _additionalGas);
@@ -375,21 +363,23 @@ contract NomidmanEscrow {
         }
     }
 
-    function batchRelay(bytes16[] memory _tradeID, address payable[] memory _seller, address payable[] memory _buyer, uint256[] memory _value, uint16[] memory _fee, uint128[] memory _maximumGasPrice, uint8[] memory _v, bytes32[] memory _r, bytes32[] memory _s, uint8[] memory _actionByte) public returns (bool[] memory) {
+    function batchRelay(bytes16[] memory _tradeID, address payable[] memory _seller, address payable[] memory _buyer, uint256[] memory _value, uint16[] memory _fee, uint8[] memory _v, bytes32[] memory _r, bytes32[] memory _s, uint8[] memory _actionByte) public returns (bool[] memory) {
         bool[] memory _results = new bool[](_tradeID.length);
         uint128 _additionalGas = uint128(msg.sender == relayer
             ? gasEstimations[keccak256(abi.encodePacked(GasSpendingAction.BATCH_RELAY))] / _tradeID.length
             : 0);
         for (uint8 i = 0; i < _tradeID.length; i++) {
-            _results[i] = relay(_tradeID[i], _seller[i], _buyer[i], _value[i], _fee[i], _maximumGasPrice[i], _v[i], _r[i], _s[i], _actionByte[i], _additionalGas);
+            _results[i] = relay(_tradeID[i], _seller[i], _buyer[i], _value[i], _fee[i], _v[i], _r[i], _s[i], _actionByte[i], _additionalGas);
         }
         return _results;
     }
 
-    function getRelayedSender(bytes16 _tradeID, uint8 _actionByte, uint128 _maximumGasPrice, uint8 _v, bytes32 _r, bytes32 _s) view private returns (address) {
-        bytes32 _hash = keccak256(abi.encodePacked(_tradeID, _actionByte, _maximumGasPrice));
-        if (tx.gasprice > _maximumGasPrice) return address(0);
-        return ecrecover(_hash, _v, _r, _s);
+    function getRelayedSender(bytes16 _tradeID, uint8 _actionByte, uint8 _v, bytes32 _r, bytes32 _s) pure private returns (address) {
+        bytes32 _hash = keccak256(abi.encodePacked(_tradeID, _actionByte));
+        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
+        bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, _hash));
+        //if (tx.gasprice > _maximumGasPrice) return address(0);
+        return ecrecover(prefixedHash, _v, _r, _s);
     }
 
     function transferMinusFees(address payable _to, uint256 _value, uint128 _totalGasFeesSpentByRelayer, uint256 _fee) private {
